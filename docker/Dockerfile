@@ -308,10 +308,20 @@ CMD ["bash"]
 FROM dev AS build
 
 ARG CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
-# build ROS workspace
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+ARG ENABLE_CCACHE="false"
+# build ROS workspace (with ccache, its cache lives in a BuildKit cache mount
+# that survives across builds on the same builder, not in the image)
+RUN --mount=type=cache,target=/ccache \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
     [[ -f /opt/ws_base_image/install/setup.bash ]] && source /opt/ws_base_image/install/setup.bash ; \
-    colcon build --cmake-args ${CMAKE_ARGS}
+    if [[ "${ENABLE_CCACHE}" == "true" ]]; then \
+        command -v ccache > /dev/null || { echo "ENABLE_CCACHE=true requires ccache in the image, e.g. via additional-debs" >&2; exit 1; } ; \
+        export CCACHE_DIR=/ccache ; \
+        ccache --zero-stats > /dev/null ; \
+        CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache" ; \
+    fi ; \
+    colcon build --cmake-args ${CMAKE_ARGS} && \
+    if [[ "${ENABLE_CCACHE}" == "true" ]]; then ccache --show-stats ; fi
 
 ############ run ###############################################################
 FROM dependencies-install AS run
