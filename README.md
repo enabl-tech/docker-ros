@@ -324,6 +324,29 @@ jobs:
 
 </details>
 
+### Build on a persistent builder with ccache
+
+By default, the GitHub Action sets up a fresh buildx builder for every run, so no layer or compiler cache survives between runs. To reuse a builder you provide yourself, e.g. a persistent one, disable the built-in setup with `enable-buildx-setup: false`. With `enable-ccache: true` (and `ccache` listed in `docker/additional-debs.txt`), `colcon build` compiles through ccache, whose cache lives in a BuildKit cache mount on that builder, so unchanged sources are not recompiled.
+
+```yaml
+jobs:
+  docker-ros:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      # provides a BuildKit builder whose state persists across runs, and makes it current
+      - uses: useblacksmith/setup-docker-builder@v2
+        with:
+          cache-key: my-repo-amd64
+      - uses: ika-rwth-aachen/docker-ros@main
+        with:
+          base-image: rwthika/ros2:jazzy
+          command: ros2 run my_pkg my_node
+          enable-buildx-setup: false
+          enable-ccache: true
+```
+
+Note that the externally provided builder must support the requested `platform`s.
+
 ### Build images locally
 
 *docker-ros* can build Docker images locally by executing the [`build.sh`](scripts/build.sh) script.
@@ -469,6 +492,14 @@ The password of the custom user is set to its username (`dockeruser:dockeruser` 
 - **`-` | `DOCKER_ROS_GIT_REF`**  
   Git ref of *docker-ros* to run in CI  
   *default:* `main` 
+- **`enable-buildx-setup` | `-`**  
+  Set up a fresh Docker buildx builder via `docker/setup-buildx-action`  
+  *set `false` to build with an externally provided builder, i.e. the current `docker buildx use` builder or `BUILDX_BUILDER`*  
+  *default:* `true`
+- **`enable-ccache` | `ENABLE_CCACHE`**  
+  Compile with [ccache](https://ccache.dev), persisting its cache in a BuildKit cache mount  
+  *requires `ccache` in the image, e.g. via `additional-debs`; the cache only survives across builds on a persistent builder*  
+  *default:* `false`
 - **`enable-checkout` | `-`**  
   Enable [*checkout*](https://github.com/actions/checkout) action to (re-)download your repository prior to running the pipeline  
   *default:* `true`

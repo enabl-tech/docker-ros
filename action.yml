@@ -61,6 +61,12 @@ inputs:
   disable-ros-installation:
     description: "Disable automatic installation of `ros-$ROS_DISTRO-ros-core` package, e.g., if ROS is already installed in `base-image` and package is not available for the OS"
     default: "false"
+  enable-buildx-setup:
+    description: "Set up a fresh Docker buildx builder via docker/setup-buildx-action (set `false` to build with an externally provided builder, i.e. the current `docker buildx use` builder or `BUILDX_BUILDER`)"
+    default: "true"
+  enable-ccache:
+    description: "Compile with ccache, persisting its cache in a BuildKit cache mount (requires `ccache` in the image, e.g. via `additional-debs`; most useful on a persistent builder)"
+    default: "false"
   enable-checkout:
     description: "Enable checkout action to (re-)download your repository prior to running the pipeline"
     default: "true"
@@ -219,7 +225,13 @@ runs:
         password: ${{ inputs.registry-password }}
 
     - name: Set up Docker buildx
+      if: ${{ inputs.enable-buildx-setup == 'true' }}
       uses: docker/setup-buildx-action@v3
+
+    - name: Use existing Docker buildx builder
+      if: ${{ inputs.enable-buildx-setup != 'true' }}
+      shell: bash
+      run: docker buildx inspect --bootstrap
 
     - name: Enforce lower-case image name 
       id: image-name
@@ -260,6 +272,7 @@ runs:
         DEV_IMAGE_NAME: ${{ steps.dev-image-name.outputs.lowercase }}
         DEV_IMAGE_TAG: ${{ inputs.dev-image-tag }}
         DISABLE_ROS_INSTALLATION: ${{ inputs.disable-ros-installation }}
+        ENABLE_CCACHE: ${{ inputs.enable-ccache }}
         ENABLE_RECURSIVE_ADDITIONAL_DEBS: ${{ inputs.enable-recursive-additional-debs }}
         ENABLE_RECURSIVE_ADDITIONAL_PIP: ${{ inputs.enable-recursive-additional-pip }}
         ENABLE_RECURSIVE_AFTER_DEPENDENCY_INSTALLATION_SCRIPT: ${{ inputs.enable-recursive-after-dependency-installation-script }}
@@ -336,6 +349,7 @@ runs:
         DEV_IMAGE_NAME: ${{ steps.dev-image-name.outputs.lowercase }}
         DEV_IMAGE_TAG: ${{ inputs.dev-image-tag }}
         DISABLE_ROS_INSTALLATION: ${{ inputs.disable-ros-installation }}
+        ENABLE_CCACHE: ${{ inputs.enable-ccache }}
         ENABLE_RECURSIVE_ADDITIONAL_DEBS: ${{ inputs.enable-recursive-additional-debs }}
         ENABLE_RECURSIVE_ADDITIONAL_PIP: ${{ inputs.enable-recursive-additional-pip }}
         ENABLE_RECURSIVE_AFTER_DEPENDENCY_INSTALLATION_SCRIPT: ${{ inputs.enable-recursive-after-dependency-installation-script }}
@@ -389,6 +403,7 @@ runs:
         DEV_IMAGE_NAME: ${{ steps.dev-image-name.outputs.lowercase }}
         DEV_IMAGE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}-dev
         DISABLE_ROS_INSTALLATION: ${{ inputs.disable-ros-installation }}
+        ENABLE_CCACHE: ${{ inputs.enable-ccache }}
         ENABLE_RECURSIVE_ADDITIONAL_DEBS: ${{ inputs.enable-recursive-additional-debs }}
         ENABLE_RECURSIVE_ADDITIONAL_PIP: ${{ inputs.enable-recursive-additional-pip }}
         ENABLE_RECURSIVE_AFTER_DEPENDENCY_INSTALLATION_SCRIPT: ${{ inputs.enable-recursive-after-dependency-installation-script }}
